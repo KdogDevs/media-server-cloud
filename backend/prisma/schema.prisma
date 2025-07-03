@@ -1,0 +1,228 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  clerkId     String   @unique
+  email       String   @unique
+  firstName   String?
+  lastName    String?
+  imageUrl    String?
+  role        UserRole @default(CUSTOMER)
+  
+  // Subscription details
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  subscriptionStatus   SubscriptionStatus @default(TRIAL)
+  trialEndsAt         DateTime?
+  subscriptionEndsAt  DateTime?
+  
+  // Customer container details
+  containerName       String?
+  mediaServerType     MediaServerType @default(JELLYFIN)
+  subdomainSlug      String?           @unique
+  storageQuotaGB     Int               @default(2048) // 2TB default
+  storageUsedGB      Float             @default(0)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  containers       Container[]
+  subscriptions    Subscription[]
+  billingHistory   BillingRecord[]
+  supportTickets   SupportTicket[]
+  activityLogs     ActivityLog[]
+  
+  @@map("users")
+}
+
+model Container {
+  id                String            @id @default(cuid())
+  userId            String
+  containerName     String            @unique
+  dockerContainerId String?
+  mediaServerType   MediaServerType
+  subdomainSlug     String            @unique
+  status            ContainerStatus   @default(CREATING)
+  
+  // Resource allocation
+  cpuLimit          Float             @default(0.25) // CPU cores
+  memoryLimit       Int               @default(800)  // MB
+  storageQuotaGB    Int               @default(2048) // GB
+  
+  // Storage details
+  hetznerStorageBox  String?          // Storage box identifier
+  mountPath         String?
+  storageUsedGB     Float             @default(0)
+  
+  // Network details
+  internalPort      Int               @default(8096)
+  externalPort      Int?
+  sslEnabled        Boolean           @default(true)
+  
+  // Configuration
+  config            Json?             // Store container-specific config
+  environmentVars   Json?             // Environment variables
+  
+  // Timestamps
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  lastHealthCheck   DateTime?
+  
+  // Relations
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("containers")
+}
+
+model Subscription {
+  id                    String             @id @default(cuid())
+  userId                String
+  stripeSubscriptionId  String             @unique
+  stripePriceId         String
+  status                SubscriptionStatus
+  currentPeriodStart    DateTime
+  currentPeriodEnd      DateTime
+  cancelAtPeriodEnd     Boolean            @default(false)
+  trialEndsAt          DateTime?
+  
+  // Timestamps
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  // Relations
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("subscriptions")
+}
+
+model BillingRecord {
+  id                String              @id @default(cuid())
+  userId            String
+  stripeInvoiceId   String?             @unique
+  stripePaymentId   String?
+  amount            Int                 // Amount in cents
+  currency          String              @default("usd")
+  status            BillingStatus
+  description       String?
+  
+  // Timestamps
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relations
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("billing_records")
+}
+
+model SupportTicket {
+  id          String        @id @default(cuid())
+  userId      String
+  title       String
+  description String
+  status      TicketStatus  @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  
+  // Timestamps
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  resolvedAt  DateTime?
+  
+  // Relations
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("support_tickets")
+}
+
+model ActivityLog {
+  id        String      @id @default(cuid())
+  userId    String?
+  action    String
+  resource  String?
+  details   Json?
+  ipAddress String?
+  userAgent String?
+  
+  // Timestamps
+  createdAt DateTime    @default(now())
+  
+  // Relations
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@map("activity_logs")
+}
+
+model SystemSettings {
+  id                      String   @id @default(cuid())
+  key                     String   @unique
+  value                   String
+  description             String?
+  
+  // Timestamps
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  @@map("system_settings")
+}
+
+// Enums
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  SUPPORT
+}
+
+enum MediaServerType {
+  JELLYFIN
+  PLEX
+  EMBY
+}
+
+enum ContainerStatus {
+  CREATING
+  RUNNING
+  STOPPED
+  ERROR
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum BillingStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
