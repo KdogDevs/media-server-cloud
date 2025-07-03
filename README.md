@@ -6,11 +6,9 @@ A complete SaaS solution for hosting personal media servers (Jellyfin, Plex, Emb
 
 ### Prerequisites
 
-- Ubuntu 22.04 LTS server (tested on Hetzner AX-41)
-- Domain name with DNS access
+- Ubuntu 22.04 LTS server
 - Clerk account for authentication
-- Stripe account for billing
-- Hetzner Storage Box for customer data
+- *(All other configuration is automated)*
 
 ### One-Command Setup
 
@@ -20,22 +18,23 @@ A complete SaaS solution for hosting personal media servers (Jellyfin, Plex, Emb
    cd media-server-cloud
    ```
 
-2. **Run the setup script:**
+2. **Run the automated setup script:**
    ```bash
    sudo bash setup.sh
    ```
+   *(Must be run from the repository root directory)*
 
-3. **Follow the interactive prompts to configure:**
-   - Domain name
-   - SSL email
-   - Clerk API keys
-   - Stripe API keys
-   - Hetzner credentials
+3. **Enter only your Clerk credentials when prompted:**
+   - Clerk Publishable Key
+   - Clerk Secret Key
+   
+   *(All other configuration is automated - database password is auto-generated)*
 
 4. **Access your platform:**
-   - Customer Portal: `https://app.yourdomain.com`
-   - Admin Dashboard: `https://app.yourdomain.com/admin`
-   - API Endpoint: `https://api.yourdomain.com`
+   - Customer Portal: `http://localhost:3000`
+   - Admin Dashboard: `http://localhost:3000/admin`
+   - API Endpoint: `http://localhost:4000`
+   - Database: `localhost:5432` (credentials shown after setup)
 
 ## 🎯 Features
 
