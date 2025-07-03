@@ -98,7 +98,7 @@ install_dialog() {
 # Check if we're in a non-interactive environment
 is_non_interactive() {
     # Check for common non-interactive indicators
-    if [[ -n "$CI" ]] || [[ -n "$AUTOMATED_INSTALL" ]] || [[ "$DEBIAN_FRONTEND" == "noninteractive" ]] || [[ ! -t 0 ]]; then
+    if [[ -n "${CI:-}" ]] || [[ -n "${AUTOMATED_INSTALL:-}" ]] || [[ "${DEBIAN_FRONTEND:-}" == "noninteractive" ]] || [[ ! -t 0 ]]; then
         return 0
     fi
     
