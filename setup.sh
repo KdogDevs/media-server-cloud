@@ -25,6 +25,9 @@ PLATFORM_DIR="/opt/media-platform"
 LOG_FILE="/var/log/media-platform-setup.log"
 COMPOSE_FILE="$PLATFORM_DIR/docker-compose.yml"
 
+# Use current working directory as source (user should run from repo root)
+SOURCE_DIR="$(pwd)"
+
 # Logging function
 log() {
     echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}" | tee -a "$LOG_FILE"
@@ -50,6 +53,43 @@ check_root() {
     fi
 }
 
+# Check if platform is already installed
+check_existing_installation() {
+    if [[ -d "$PLATFORM_DIR" && -f "$PLATFORM_DIR/.env" ]]; then
+        log "Existing installation detected at $PLATFORM_DIR"
+        INSTALLATION_TYPE="update"
+        return 0
+    else
+        log "No existing installation found - performing fresh install"
+        INSTALLATION_TYPE="install"
+        return 1
+    fi
+}
+
+# Load existing configuration if updating
+load_existing_config() {
+    if [[ "$INSTALLATION_TYPE" == "update" && -f "$PLATFORM_DIR/.env" ]]; then
+        log "Loading existing configuration..."
+        source "$PLATFORM_DIR/.env"
+        
+        # Check if Clerk keys are already configured
+        if [[ -n "$CLERK_PUBLISHABLE_KEY" && -n "$CLERK_SECRET_KEY" ]]; then
+            log "Existing Clerk configuration found"
+            CLERK_CONFIG_EXISTS=true
+        else
+            CLERK_CONFIG_EXISTS=false
+        fi
+        
+        # Preserve existing database password if it exists
+        if [[ -n "$POSTGRES_PASSWORD" ]]; then
+            DB_PASSWORD="$POSTGRES_PASSWORD"
+            log "Existing database password preserved"
+        fi
+    else
+        CLERK_CONFIG_EXISTS=false
+    fi
+}
+
 # Install required packages for the setup process
 install_dialog() {
     log "Installing dialog for interactive prompts..."
@@ -61,13 +101,28 @@ install_dialog() {
 collect_config() {
     log "Collecting minimal configuration from user..."
     
-    # Only collect Clerk configuration and database password
-    # All other credentials will be configured via admin UI
-    CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
-    CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
+    # Handle Clerk configuration based on installation type
+    if [[ "$INSTALLATION_TYPE" == "update" && "$CLERK_CONFIG_EXISTS" == true ]]; then
+        log "Using existing Clerk configuration"
+        # Ask if user wants to update Clerk keys
+        if whiptail --yesno "Existing Clerk configuration found. Do you want to update it?" 8 78 --title "Update Clerk Configuration"; then
+            CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter new Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
+            CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter new Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
+        fi
+    else
+        # Fresh install or missing Clerk config - always prompt
+        CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
+        CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
+    fi
     
-    # Database configuration
-    DB_PASSWORD=$(whiptail --passwordbox "Enter PostgreSQL password:" 8 78 --title "Database Configuration" 3>&1 1>&2 2>&3)
+    # Handle database password
+    if [[ "$INSTALLATION_TYPE" == "update" && -n "$DB_PASSWORD" ]]; then
+        log "Using existing database password"
+    else
+        # Auto-generate secure database password for fresh installs
+        DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+        log "Database password auto-generated securely"
+    fi
     
     log "Configuration collected. Other settings will be configured via admin UI."
 }
@@ -85,6 +140,7 @@ install_dependencies() {
         wget \
         git \
         unzip \
+        rsync \
         software-properties-common \
         apt-transport-https \
         ca-certificates \
@@ -163,22 +219,26 @@ setup_platform_directory() {
     
     # Create main platform directory
     mkdir -p "$PLATFORM_DIR"
-    cd "$PLATFORM_DIR"
     
-    # Copy source code from git repository
-    if [[ -d "/home/runner/work/media-server-cloud/media-server-cloud" ]]; then
-        cp -r /home/runner/work/media-server-cloud/media-server-cloud/* "$PLATFORM_DIR/"
+    # Copy source code from the current directory where script is run
+    log "Copying source code from $SOURCE_DIR to $PLATFORM_DIR"
+    
+    # Check if we're running from the source directory
+    if [[ -f "$SOURCE_DIR/setup.sh" && -f "$SOURCE_DIR/docker-compose.yml" ]]; then
+        # Copy all files except .git directory
+        rsync -av --exclude='.git' --exclude='*.log' "$SOURCE_DIR/" "$PLATFORM_DIR/"
+        log "Source code copied successfully from $SOURCE_DIR"
     else
-        error "Source code not found. Please ensure the repository is cloned."
+        error "Script must be run from the media-server-cloud repository root directory (where setup.sh and docker-compose.yml are located)"
     fi
     
     # Create additional directories
-    mkdir -p logs
-    mkdir -p data/postgres
-    mkdir -p data/prometheus
-    mkdir -p data/grafana
-    mkdir -p ssl
-    mkdir -p backups
+    mkdir -p "$PLATFORM_DIR/logs"
+    mkdir -p "$PLATFORM_DIR/data/postgres"
+    mkdir -p "$PLATFORM_DIR/data/prometheus"
+    mkdir -p "$PLATFORM_DIR/data/grafana"
+    mkdir -p "$PLATFORM_DIR/ssl"
+    mkdir -p "$PLATFORM_DIR/backups"
     
     # Set proper permissions
     chown -R $SUDO_USER:$SUDO_USER "$PLATFORM_DIR" 2>/dev/null || true
@@ -230,6 +290,13 @@ build_and_start_services() {
     log "Building and starting services..."
     
     cd "$PLATFORM_DIR"
+    
+    # Stop existing services if this is an update
+    if [[ "$INSTALLATION_TYPE" == "update" ]]; then
+        log "Stopping existing services for update..."
+        docker compose down || true
+        sleep 5
+    fi
     
     # Build backend
     cd backend
@@ -370,6 +437,8 @@ ${NC}
 
 ${BLUE}Your Media Server Hosting Platform is now ready!${NC}
 
+${YELLOW}Setup Type:${NC} $INSTALLATION_TYPE
+
 ${YELLOW}Access URLs:${NC}
 • Frontend (Customer Portal): http://localhost:3000
 • Backend API: http://localhost:4000
@@ -377,6 +446,11 @@ ${YELLOW}Access URLs:${NC}
 • Redis: localhost:6379
 • Prometheus: http://localhost:9090
 • Grafana: http://localhost:3002
+
+${YELLOW}Database Credentials:${NC}
+• Username: postgres
+• Password: $DB_PASSWORD
+• Database: mediaplatform
 
 ${YELLOW}Next Steps:${NC}
 1. Visit http://localhost:3000 to access the platform
@@ -395,6 +469,8 @@ main() {
     log "Starting Media Server Hosting Platform setup..."
     
     check_root
+    check_existing_installation
+    load_existing_config
     install_dialog
     collect_config
     install_dependencies
