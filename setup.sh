@@ -125,15 +125,36 @@ safe_yesno() {
         echo "┌─ $title ─┐"
         echo "│ $message"
         echo "└─────────────────────────────────┘"
-        while true; do
-            read -p "Enter your choice (y/n): " -n 1 -r
-            echo
-            case $REPLY in
-                [Yy]* ) return 0;;
-                [Nn]* ) return 1;;
-                * ) echo "Please answer y or n.";;
+        
+        local attempts=0
+        local max_attempts=5
+        
+        while [[ $attempts -lt $max_attempts ]]; do
+            local user_input=""
+            read -p "Enter your choice (y/n): " -r user_input || {
+                echo "Error reading input."
+                ((attempts++))
+                continue
+            }
+            
+            # Handle the response
+            case "${user_input,,}" in  # Convert to lowercase
+                y|yes) return 0;;
+                n|no) return 1;;
+                "") 
+                    echo "Please enter a value."
+                    ;;
+                *) 
+                    echo "Please answer y or n."
+                    ;;
             esac
+            
+            ((attempts++))
         done
+        
+        # If we get here, too many invalid attempts
+        echo "Too many invalid attempts. Defaulting to 'no' for safety."
+        return 1
     fi
 }
 
@@ -596,5 +617,7 @@ main() {
     log "Setup completed successfully!"
 }
 
-# Run main function
-main "$@"
+# Run main function only if script is executed directly (not sourced)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
