@@ -1,6 +1,7 @@
-FROM node:20-alpine
+# Build stage
+FROM node:20-alpine AS builder
 
-# Install system dependencies
+# Install system dependencies for build
 RUN apk add --no-cache \
     curl \
     bash \
@@ -12,8 +13,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install all dependencies (including devDependencies for build)
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY . .
@@ -21,12 +22,32 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Create non-root user
+# Production stage
+FROM node:20-alpine AS production
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    bash \
+    ca-certificates
+
+# Create non-root user first
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# Change ownership of the app directory
-RUN chown -R nodejs:nodejs /app
+# Create app directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy built application from builder stage
+COPY --from=builder --chown=nodejs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nodejs:nodejs /app/public ./public
+COPY --from=builder --chown=nodejs:nodejs /app/next.config.js ./next.config.js
 
 # Switch to non-root user
 USER nodejs
