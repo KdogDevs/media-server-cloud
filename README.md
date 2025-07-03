@@ -12,6 +12,10 @@ A complete SaaS solution for hosting personal media servers (Jellyfin, Plex, Emb
 
 ### One-Command Setup
 
+**After**: Single command installation (like Tailscale):
+```bash
+curl -fsSL https://raw.githubusercontent.com/KdogDevs/media-server-cloud/main/web-install.sh | sudo bash
+```
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/KdogDevs/media-server-cloud.git
