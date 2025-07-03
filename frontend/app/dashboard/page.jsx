@@ -14,10 +14,11 @@ import {
   CheckCircle
 } from 'lucide-react';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
+import { ProtectedFeature, useSubscriptionFeatures } from './components/ProtectedFeature';
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const { has, getSubscriptionStatus } = useSubscriptionFeatures();
   const searchParams = useSearchParams();
   const welcome = searchParams?.get('welcome');
   
@@ -77,8 +78,10 @@ export default function DashboardPage() {
     );
   }
 
-  const hasActiveSubscription = userProfile?.subscriptionStatus === 'ACTIVE';
-  const isTrialActive = userProfile?.subscriptionStatus === 'TRIAL' && userProfile?.trialEndsAt && new Date(userProfile.trialEndsAt) > new Date();
+  // Use Clerk-based subscription status instead of backend data
+  const subscriptionStatus = getSubscriptionStatus();
+  const hasActiveSubscription = has(); // Uses the has() method as mentioned in the issue
+  const isTrialActive = subscriptionStatus === 'trial';
   const hasContainer = containers.length > 0;
 
   return (
@@ -295,6 +298,53 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </Link>
+
+              {/* Protected Feature Example - Advanced Analytics */}
+              <ProtectedFeature 
+                feature="advanced_analytics"
+                fallback={
+                  <div className="relative group bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <div>
+                      <span className="rounded-lg inline-flex p-3 bg-gray-100 text-gray-400 ring-4 ring-white">
+                        <Activity className="h-6 w-6" />
+                      </span>
+                    </div>
+                    <div className="mt-8">
+                      <h3 className="text-lg font-medium text-gray-500">
+                        Advanced Analytics
+                      </h3>
+                      <p className="mt-2 text-sm text-gray-400">
+                        Detailed server metrics and usage analytics
+                      </p>
+                      <div className="mt-3">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Pro Feature
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                }
+              >
+                <Link
+                  href="/dashboard/analytics"
+                  className="relative group bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-300 hover:border-gray-400"
+                >
+                  <div>
+                    <span className="rounded-lg inline-flex p-3 bg-green-50 text-green-700 ring-4 ring-white">
+                      <Activity className="h-6 w-6" />
+                    </span>
+                  </div>
+                  <div className="mt-8">
+                    <h3 className="text-lg font-medium">
+                      <span className="absolute inset-0" aria-hidden="true" />
+                      Advanced Analytics
+                    </h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Detailed server metrics and usage analytics
+                    </p>
+                  </div>
+                </Link>
+              </ProtectedFeature>
             </div>
           )}
         </div>

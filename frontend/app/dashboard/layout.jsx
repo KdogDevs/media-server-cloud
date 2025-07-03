@@ -3,11 +3,7 @@ import { redirect } from 'next/navigation';
 import DashboardSidebar from './components/Sidebar';
 import DashboardHeader from './components/Header';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }) {
   const { userId } = auth();
 
   if (!userId) {

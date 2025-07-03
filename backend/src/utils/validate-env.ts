@@ -13,12 +13,6 @@ const envSchema = Joi.object({
     // Clerk Authentication
     CLERK_PUBLISHABLE_KEY: Joi.string().required(),
     CLERK_SECRET_KEY: Joi.string().required(),
-    CLERK_WEBHOOK_SECRET: Joi.string().required(),
-    
-    // Stripe
-    STRIPE_SECRET_KEY: Joi.string().required(),
-    STRIPE_WEBHOOK_SECRET: Joi.string().required(),
-    STRIPE_PRICE_ID: Joi.string().required(),
     
     // Hetzner
     HETZNER_TOKEN: Joi.string().required(),
