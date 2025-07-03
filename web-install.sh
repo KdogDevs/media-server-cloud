@@ -66,8 +66,14 @@ check_requirements() {
     log "Checking system requirements..."
     
     # Check if Ubuntu
-    if ! grep -q "Ubuntu" /etc/os-release; then
+    if ! grep -q "Ubuntu" /etc/os-release 2>/dev/null; then
         warn "This script is designed for Ubuntu. Other distributions may not work properly."
+    fi
+    
+    # Check available disk space (need at least 2GB)
+    available_space=$(df / | tail -1 | awk '{print $4}')
+    if [[ $available_space -lt 2097152 ]]; then # 2GB in KB
+        warn "Low disk space detected. At least 2GB free space is recommended."
     fi
     
     # Check if git is installed
@@ -83,6 +89,8 @@ check_requirements() {
         apt-get update -qq
         apt-get install -y curl
     fi
+    
+    log "System requirements check completed"
 }
 
 # Download latest source code
@@ -92,12 +100,28 @@ download_source() {
     # Create temporary directory
     mkdir -p "$TEMP_DIR"
     
-    # Clone the repository
-    if git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$TEMP_DIR"; then
-        log "Source code downloaded successfully"
-    else
-        error "Failed to download source code from $REPO_URL"
-    fi
+    # Clone the repository with retry logic
+    local max_attempts=3
+    local attempt=1
+    
+    while [[ $attempt -le $max_attempts ]]; do
+        log "Download attempt $attempt of $max_attempts..."
+        
+        if git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$TEMP_DIR" 2>/dev/null; then
+            log "Source code downloaded successfully"
+            return 0
+        else
+            warn "Download attempt $attempt failed"
+            if [[ $attempt -eq $max_attempts ]]; then
+                error "Failed to download source code from $REPO_URL after $max_attempts attempts"
+            fi
+            rm -rf "$TEMP_DIR"
+            mkdir -p "$TEMP_DIR"
+            sleep 2
+        fi
+        
+        ((attempt++))
+    done
 }
 
 # Check for existing installation
@@ -112,15 +136,33 @@ check_existing_installation() {
     fi
 }
 
+# Validate downloaded source code
+validate_source() {
+    log "Validating downloaded source code..."
+    
+    # Check if essential files exist
+    local required_files=("setup.sh" "docker-compose.yml" "backend/package.json" "frontend/package.json")
+    
+    for file in "${required_files[@]}"; do
+        if [[ ! -f "$TEMP_DIR/$file" ]]; then
+            error "Required file $file not found in downloaded source"
+        fi
+    done
+    
+    # Check if setup.sh is executable or can be made executable
+    if [[ ! -x "$TEMP_DIR/setup.sh" ]]; then
+        chmod +x "$TEMP_DIR/setup.sh" || error "Cannot make setup.sh executable"
+    fi
+    
+    log "Source code validation completed"
+}
+
 # Run the main setup script
 run_setup() {
     log "Running main setup script..."
     
     # Change to the downloaded directory
     cd "$TEMP_DIR"
-    
-    # Make the setup script executable
-    chmod +x setup.sh
     
     # Run the setup script
     if ./setup.sh; then
@@ -145,6 +187,7 @@ main() {
     fi
     
     download_source
+    validate_source
     run_setup
     
     log "Installation completed successfully!"
