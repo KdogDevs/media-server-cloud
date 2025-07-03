@@ -1,0 +1,16 @@
+{
+  "name": "Media Platform",
+  "short_name": "Media Platform", 
+  "description": "Your Personal Media Server in the Cloud",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
