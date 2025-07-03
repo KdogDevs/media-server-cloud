@@ -59,29 +59,17 @@ install_dialog() {
 
 # Collect configuration from user
 collect_config() {
-    log "Collecting configuration from user..."
+    log "Collecting minimal configuration from user..."
     
-    # Domain name
-    DOMAIN=$(whiptail --inputbox "Enter your domain name (e.g., mediaserver.com):" 8 78 --title "Domain Configuration" 3>&1 1>&2 2>&3)
-    
-    # Email for SSL certificates
-    SSL_EMAIL=$(whiptail --inputbox "Enter email for SSL certificates:" 8 78 --title "SSL Configuration" 3>&1 1>&2 2>&3)
-    
-    # Clerk configuration
+    # Only collect Clerk configuration and database password
+    # All other credentials will be configured via admin UI
     CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
     CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
-    
-    # Hetzner configuration
-    HETZNER_TOKEN=$(whiptail --passwordbox "Enter Hetzner Cloud API Token:" 8 78 --title "Hetzner Storage" 3>&1 1>&2 2>&3)
-    HETZNER_STORAGE_BOX_HOST=$(whiptail --inputbox "Enter Hetzner Storage Box Host:" 8 78 --title "Hetzner Storage" 3>&1 1>&2 2>&3)
-    HETZNER_STORAGE_BOX_USER=$(whiptail --inputbox "Enter Hetzner Storage Box Username:" 8 78 --title "Hetzner Storage" 3>&1 1>&2 2>&3)
-    HETZNER_STORAGE_BOX_PASS=$(whiptail --passwordbox "Enter Hetzner Storage Box Password:" 8 78 --title "Hetzner Storage" 3>&1 1>&2 2>&3)
     
     # Database configuration
     DB_PASSWORD=$(whiptail --passwordbox "Enter PostgreSQL password:" 8 78 --title "Database Configuration" 3>&1 1>&2 2>&3)
     
-    # Admin email
-    ADMIN_EMAIL=$(whiptail --inputbox "Enter admin email address:" 8 78 --title "Admin Configuration" 3>&1 1>&2 2>&3)
+    log "Configuration collected. Other settings will be configured via admin UI."
 }
 
 # Install system dependencies
@@ -163,24 +151,10 @@ install_nodejs() {
 }
 
 # Install Nginx
-install_nginx() {
-    if command -v nginx &> /dev/null; then
-        log "Nginx already installed, skipping..."
-        return
-    fi
-    
-    log "Installing Nginx..."
-    
-    apt-get install -y nginx > /dev/null 2>&1
-    
-    # Start and enable Nginx
-    systemctl start nginx
-    systemctl enable nginx
-    
-    # Configure firewall
-    ufw allow 'Nginx Full'
-    
-    log "Nginx installed successfully"
+# Skip nginx installation - not needed for direct port access
+skip_nginx_install() {
+    log "Skipping Nginx installation - using direct port access"
+    log "Frontend will be accessible on port 3000, Backend on port 4000"
 }
 
 # Setup platform directory structure
@@ -218,15 +192,11 @@ generate_env_file() {
     log "Generating environment configuration..."
     
     cat > "$PLATFORM_DIR/.env" << EOF
-# Domain Configuration
-DOMAIN=$DOMAIN
-SSL_EMAIL=$SSL_EMAIL
+# Application URLs (localhost based)
+FRONTEND_URL=http://localhost:3000
+BACKEND_URL=http://localhost:4000
 
-# Application URLs
-FRONTEND_URL=https://app.$DOMAIN
-BACKEND_URL=https://api.$DOMAIN
-
-# Database Configuration
+# Database Configuration (using container name for inter-container communication)
 DATABASE_URL=postgresql://postgres:$DB_PASSWORD@postgres:5432/mediaplatform
 POSTGRES_PASSWORD=$DB_PASSWORD
 
@@ -234,25 +204,19 @@ POSTGRES_PASSWORD=$DB_PASSWORD
 CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY=$CLERK_SECRET_KEY
 
-# Hetzner Configuration
-HETZNER_TOKEN=$HETZNER_TOKEN
-HETZNER_STORAGE_BOX_HOST=$HETZNER_STORAGE_BOX_HOST
-HETZNER_STORAGE_BOX_USER=$HETZNER_STORAGE_BOX_USER
-HETZNER_STORAGE_BOX_PASS=$HETZNER_STORAGE_BOX_PASS
-
 # Security
 JWT_SECRET=$(openssl rand -base64 32)
 SESSION_SECRET=$(openssl rand -base64 32)
-
-# Admin Configuration
-ADMIN_EMAIL=$ADMIN_EMAIL
 
 # Node Environment
 NODE_ENV=production
 
 # Monitoring
 PROMETHEUS_PORT=9090
-GRAFANA_PORT=3001
+GRAFANA_PORT=3002
+
+# Redis Configuration (using container name for inter-container communication)
+REDIS_URL=redis://redis:6379
 EOF
 
     # Secure the environment file
@@ -289,28 +253,10 @@ build_and_start_services() {
 }
 
 # Setup SSL certificates
-setup_ssl() {
-    log "Setting up SSL certificates..."
-    
-    # Install certbot
-    apt-get install -y certbot python3-certbot-nginx > /dev/null 2>&1
-    
-    # Configure Nginx first
-    cp nginx/nginx.conf /etc/nginx/sites-available/mediaplatform
-    ln -sf /etc/nginx/sites-available/mediaplatform /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default
-    
-    # Replace domain placeholders
-    sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" /etc/nginx/sites-available/mediaplatform
-    
-    # Test Nginx configuration
-    nginx -t
-    systemctl reload nginx
-    
-    # Obtain SSL certificates
-    certbot --nginx -d "$DOMAIN" -d "api.$DOMAIN" -d "app.$DOMAIN" -d "*.$DOMAIN" --email "$SSL_EMAIL" --agree-tos --non-interactive || warn "SSL certificate generation failed, continuing..."
-    
-    log "SSL certificates configured"
+# Skip SSL setup - not needed for localhost deployment
+skip_ssl_setup() {
+    log "Skipping SSL setup - using localhost deployment"
+    log "SSL setup not required for local development"
 }
 
 # Run database migrations
@@ -392,18 +338,18 @@ run_self_test() {
         warn "✗ Database connection failed"
     fi
     
-    # Test backend API
-    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000/healthz" | grep -q "200"; then
-        log "✓ Backend API responding"
+    # Test backend API (changed to port 4000)
+    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:4000/healthz" | grep -q "200"; then
+        log "✓ Backend API responding on port 4000"
     else
-        warn "✗ Backend API not responding"
+        warn "✗ Backend API not responding on port 4000"
     fi
     
-    # Test frontend
-    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001" | grep -q "200"; then
-        log "✓ Frontend responding"
+    # Test frontend (changed to port 3000)
+    if curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000" | grep -q "200"; then
+        log "✓ Frontend responding on port 3000"
     else
-        warn "✗ Frontend not responding"
+        warn "✗ Frontend not responding on port 3000"
     fi
     
     log "Self-test completed"
@@ -425,19 +371,16 @@ ${NC}
 ${BLUE}Your Media Server Hosting Platform is now ready!${NC}
 
 ${YELLOW}Access URLs:${NC}
-• Customer Portal: https://app.$DOMAIN
-• Admin Dashboard: https://app.$DOMAIN/admin
-• API Endpoint: https://api.$DOMAIN
-• Monitoring: https://app.$DOMAIN/monitoring
+• Frontend (Customer Portal): http://localhost:3000
+• Backend API: http://localhost:4000
+• Database: localhost:5432
+• Redis: localhost:6379
+• Prometheus: http://localhost:9090
+• Grafana: http://localhost:3002
 
 ${YELLOW}Next Steps:${NC}
-1. Visit https://app.$DOMAIN/sign-up to test customer registration
-2. Configure your DNS to point to this server:
-   - A record: $DOMAIN → $(curl -s ifconfig.me)
-   - CNAME: app.$DOMAIN → $DOMAIN
-   - CNAME: api.$DOMAIN → $DOMAIN
-   - CNAME: *.$DOMAIN → $DOMAIN
-
+1. Visit http://localhost:3000 to access the platform
+2. Configure additional settings via the admin UI
 3. Test the complete signup flow
 4. Monitor logs: tail -f $LOG_FILE
 
@@ -457,11 +400,11 @@ main() {
     install_dependencies
     install_docker
     install_nodejs
-    install_nginx
+    skip_nginx_install
     setup_platform_directory
     generate_env_file
     build_and_start_services
-    setup_ssl
+    skip_ssl_setup
     run_migrations
     setup_monitoring
     setup_backups

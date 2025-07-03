@@ -60,7 +60,7 @@ services:
           memory: 128M
           cpus: '0.2'
 
-  # Backend API
+  # Backend API (port 4000)
   backend:
     build:
       context: ./backend
@@ -73,19 +73,15 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
-      HETZNER_TOKEN: ${HETZNER_TOKEN}
-      HETZNER_STORAGE_BOX_HOST: ${HETZNER_STORAGE_BOX_HOST}
-      HETZNER_STORAGE_BOX_USER: ${HETZNER_STORAGE_BOX_USER}
-      HETZNER_STORAGE_BOX_PASS: ${HETZNER_STORAGE_BOX_PASS}
       JWT_SECRET: ${JWT_SECRET}
       SESSION_SECRET: ${SESSION_SECRET}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${REDIS_URL}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./data:/app/data
       - ./logs:/app/logs
     ports:
-      - "3000:3000"
+      - "4000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,7 +99,7 @@ services:
           memory: 1G
           cpus: '1.0'
 
-  # Frontend Application
+  # Frontend Application (port 3000)
   frontend:
     build:
       context: ./frontend
@@ -116,9 +112,8 @@ services:
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       NEXT_PUBLIC_API_URL: ${BACKEND_URL}
-      NEXT_PUBLIC_DOMAIN: ${DOMAIN}
     ports:
-      - "3001:3000"
+      - "3000:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -133,31 +128,6 @@ services:
         limits:
           memory: 512M
           cpus: '0.5'
-
-  # Nginx Reverse Proxy
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    container_name: media-platform-nginx
-    networks:
-      - media-platform
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./ssl:/etc/ssl/certs
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    depends_on:
-      - backend
-      - frontend
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.3'
 
   # Prometheus Monitoring
   prometheus:
@@ -232,19 +202,3 @@ services:
         limits:
           memory: 128M
           cpus: '0.2'
-
-  # Certbot for SSL certificates
-  certbot:
-    image: certbot/certbot:latest
-    container_name: media-platform-certbot
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt
-      - /var/lib/letsencrypt:/var/lib/letsencrypt
-      - /var/www/certbot:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-          cpus: '0.1'
