@@ -96,6 +96,17 @@ The platform includes a test script to verify configuration:
 ./test-setup.sh
 ```
 
+### Testing Dialog Functionality
+
+If you experience issues with installation prompts, you can test the dialog functionality:
+
+```bash
+# Test the dialog fix
+./test-dialog-fix.sh
+```
+
+This will verify that the installation prompts work correctly in your terminal environment.
+
 ## Development
 
 For development, you can run individual services:
@@ -109,6 +120,14 @@ cd frontend && npm run dev
 ```
 
 ## Troubleshooting
+
+### Installation Dialog Issues
+
+If you can't interact with installation prompts:
+- The system automatically detects terminal compatibility
+- Falls back to text-based prompts when whiptail dialogs don't work
+- Works in SSH sessions, web terminals, and other environments
+- Run `./test-dialog-fix.sh` to verify functionality
 
 ### Service Status
 ```bash
