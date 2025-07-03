@@ -4,17 +4,22 @@ This installation has been updated to work on fresh Ubuntu systems without domai
 
 ## Quick Start
 
-Run this single command on a fresh Ubuntu 22.04+ system:
+**Important:** Run the setup script from the repository root directory.
 
 ```bash
+git clone https://github.com/KdogDevs/media-server-cloud.git
+cd media-server-cloud
 sudo ./setup.sh
 ```
 
 The script will:
 - Install all required dependencies (Docker, Node.js, etc.)
+- Auto-generate secure database password
 - Set up the platform on localhost ports
-- Skip domain/SSL configuration
+- Only prompt for Clerk authentication keys
 - Start all services automatically
+
+**For updates:** Simply run `sudo ./setup.sh` again from the same directory.
 
 ## Access Points
 
@@ -32,7 +37,8 @@ After installation:
 ### Required During Setup
 - Clerk Publishable Key
 - Clerk Secret Key
-- PostgreSQL password
+
+*(Database password is auto-generated securely)*
 
 ### Optional (Configure via Admin UI)
 - Hetzner Cloud API Token
@@ -60,7 +66,10 @@ After installation:
 - Direct port access (no reverse proxy needed)
 - Database-stored configuration
 - Admin web UI for settings
-- Simplified installation process
+- **Fully automated setup** (only Clerk config required)
+- **Auto-generated database passwords**
+- **Smart install/update detection**
+- **Idempotent script** (can be run multiple times safely)
 
 ### Port Configuration
 - Frontend: 3000 (instead of 80/443 via nginx)

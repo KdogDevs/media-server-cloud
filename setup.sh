@@ -58,11 +58,9 @@ check_existing_installation() {
     if [[ -d "$PLATFORM_DIR" && -f "$PLATFORM_DIR/.env" ]]; then
         log "Existing installation detected at $PLATFORM_DIR"
         INSTALLATION_TYPE="update"
-        return 0
     else
         log "No existing installation found - performing fresh install"
         INSTALLATION_TYPE="install"
-        return 1
     fi
 }
 
