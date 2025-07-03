@@ -19,7 +19,7 @@
     "lint:fix": "eslint src --ext .ts,.js --fix"
   },
   "dependencies": {
-    "@clerk/clerk-sdk-node": "^4.13.18",
+    "@clerk/clerk-sdk-node": "^5.1.6",
     "@prisma/client": "^5.7.1",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
@@ -33,7 +33,7 @@
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.0.1",
     "node-cron": "^3.0.3",
     "prom-client": "^15.1.0",
     "redis": "^4.6.12",
