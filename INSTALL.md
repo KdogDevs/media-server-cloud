@@ -4,22 +4,31 @@ This installation has been updated to work on fresh Ubuntu systems without domai
 
 ## Quick Start
 
-**Important:** Run the setup script from the repository root directory.
+### One-Command Installation (Recommended)
 
 ```bash
-git clone https://github.com/KdogDevs/media-server-cloud.git
-cd media-server-cloud
-sudo ./setup.sh
+curl -fsSL https://raw.githubusercontent.com/KdogDevs/media-server-cloud/main/web-install.sh | sudo bash
 ```
 
-The script will:
+This single command will:
+- Download the latest source code automatically
 - Install all required dependencies (Docker, Node.js, etc.)
 - Auto-generate secure database password
 - Set up the platform on localhost ports
 - Only prompt for Clerk authentication keys
 - Start all services automatically
 
-**For updates:** Simply run `sudo ./setup.sh` again from the same directory.
+**For updates:** Simply run the same command again. It will detect existing installations and update them.
+
+### Alternative: Manual Installation
+
+If you prefer to clone the repository manually:
+
+```bash
+git clone https://github.com/KdogDevs/media-server-cloud.git
+cd media-server-cloud
+sudo ./setup.sh
+```
 
 ## Access Points
 
