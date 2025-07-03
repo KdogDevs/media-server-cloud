@@ -70,12 +70,6 @@ collect_config() {
     # Clerk configuration
     CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
     CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
-    CLERK_WEBHOOK_SECRET=$(whiptail --passwordbox "Enter Clerk Webhook Secret:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
-    
-    # Stripe configuration
-    STRIPE_SECRET_KEY=$(whiptail --passwordbox "Enter Stripe Secret Key:" 8 78 --title "Stripe Billing" 3>&1 1>&2 2>&3)
-    STRIPE_WEBHOOK_SECRET=$(whiptail --passwordbox "Enter Stripe Webhook Secret:" 8 78 --title "Stripe Billing" 3>&1 1>&2 2>&3)
-    STRIPE_PRICE_ID=$(whiptail --inputbox "Enter Stripe Price ID for $15/mo plan:" 8 78 --title "Stripe Billing" 3>&1 1>&2 2>&3)
     
     # Hetzner configuration
     HETZNER_TOKEN=$(whiptail --passwordbox "Enter Hetzner Cloud API Token:" 8 78 --title "Hetzner Storage" 3>&1 1>&2 2>&3)
@@ -239,12 +233,6 @@ POSTGRES_PASSWORD=$DB_PASSWORD
 # Clerk Authentication
 CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY=$CLERK_SECRET_KEY
-CLERK_WEBHOOK_SECRET=$CLERK_WEBHOOK_SECRET
-
-# Stripe Billing
-STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET
-STRIPE_PRICE_ID=$STRIPE_PRICE_ID
 
 # Hetzner Configuration
 HETZNER_TOKEN=$HETZNER_TOKEN
