@@ -196,8 +196,8 @@ generate_env_file() {
 FRONTEND_URL=http://localhost:3000
 BACKEND_URL=http://localhost:4000
 
-# Database Configuration
-DATABASE_URL=postgresql://postgres:$DB_PASSWORD@localhost:5432/mediaplatform
+# Database Configuration (using container name for inter-container communication)
+DATABASE_URL=postgresql://postgres:$DB_PASSWORD@postgres:5432/mediaplatform
 POSTGRES_PASSWORD=$DB_PASSWORD
 
 # Clerk Authentication
@@ -215,8 +215,8 @@ NODE_ENV=production
 PROMETHEUS_PORT=9090
 GRAFANA_PORT=3002
 
-# Redis Configuration
-REDIS_URL=redis://localhost:6379
+# Redis Configuration (using container name for inter-container communication)
+REDIS_URL=redis://redis:6379
 EOF
 
     # Secure the environment file
