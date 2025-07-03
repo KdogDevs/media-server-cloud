@@ -103,7 +103,7 @@ collect_config() {
     if [[ "$INSTALLATION_TYPE" == "update" && "$CLERK_CONFIG_EXISTS" == true ]]; then
         log "Using existing Clerk configuration"
         # Ask if user wants to update Clerk keys
-        if whiptail --yesno "Existing Clerk configuration found. Do you want to update it?" 8 78 --title "Update Clerk Configuration"; then
+        if whiptail --yesno "Existing Clerk configuration found. Do you want to update it?" 8 78 --title "Update Clerk Configuration" 3>&1 1>&2 2>&3; then
             CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter new Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
             CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter new Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
         fi
