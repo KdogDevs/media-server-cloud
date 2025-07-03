@@ -1,6 +1,3 @@
-import { PrismaClient } from '@prisma/client';
-import { RedisClientType } from 'redis';
-
 declare global {
   namespace Express {
     interface Request {
@@ -12,8 +9,8 @@ declare global {
         firstName?: string;
         lastName?: string;
       };
-      prisma: PrismaClient;
-      redis: RedisClientType;
+      prisma: any;
+      redis: any;
     }
   }
 }

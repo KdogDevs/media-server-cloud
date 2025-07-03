@@ -6,7 +6,7 @@ const router = Router();
 // These routes are placeholders for any additional auth logic
 
 // Check authentication status
-router.get('/status', (req, res) => {
+router.get('/status', (req: any, res) => {
     res.json({
         authenticated: !!req.user,
         user: req.user || null,

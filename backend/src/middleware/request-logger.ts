@@ -35,8 +35,8 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
             timestamp: new Date().toISOString(),
         });
 
-        originalEnd.call(this, chunk, encoding);
-    };
+        return originalEnd.call(this, chunk, encoding);
+    } as any;
 
     next();
 };

@@ -5,7 +5,7 @@ import { createClient } from 'redis';
 const router = Router();
 
 // Health check endpoint
-router.get('/', async (req, res) => {
+router.get('/', async (req: any, res) => {
     try {
         const healthCheck = {
             status: 'ok',
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
 });
 
 // Detailed health check
-router.get('/detailed', async (req, res) => {
+router.get('/detailed', async (req: any, res) => {
     try {
         const detailed = {
             status: 'ok',
@@ -82,12 +82,12 @@ router.get('/detailed', async (req, res) => {
                 status: 'ok',
                 responseTime: Date.now() - dbStart
             };
-        } catch (error) {
+        } catch (error: any) {
             detailed.services.database = {
                 status: 'error',
                 responseTime: 0,
                 error: error.message
-            };
+            } as any;
             detailed.status = 'degraded';
         }
 
@@ -99,12 +99,12 @@ router.get('/detailed', async (req, res) => {
                 status: 'ok',
                 responseTime: Date.now() - redisStart
             };
-        } catch (error) {
+        } catch (error: any) {
             detailed.services.redis = {
                 status: 'error',
                 responseTime: 0,
                 error: error.message
-            };
+            } as any;
             detailed.status = 'degraded';
         }
 
@@ -120,7 +120,7 @@ router.get('/detailed', async (req, res) => {
 });
 
 // Readiness probe (for Kubernetes)
-router.get('/ready', async (req, res) => {
+router.get('/ready', async (req: any, res) => {
     try {
         // Check if all critical services are ready
         await req.prisma.$queryRaw`SELECT 1`;
@@ -130,7 +130,7 @@ router.get('/ready', async (req, res) => {
             status: 'ready',
             timestamp: new Date().toISOString()
         });
-    } catch (error) {
+    } catch (error: any) {
         res.status(503).json({
             status: 'not ready',
             timestamp: new Date().toISOString(),

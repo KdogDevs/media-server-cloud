@@ -7,6 +7,9 @@ import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
 import { createClient } from 'redis';
 
+// Import type augmentations
+import './types/express';
+
 // Import routes
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
@@ -88,7 +91,7 @@ const webhookLimiter = rateLimit({
 app.use('/webhooks/', webhookLimiter);
 
 // Make Prisma and Redis available to routes
-app.use((req, res, next) => {
+app.use((req: any, res, next) => {
     req.prisma = prisma;
     req.redis = redis;
     next();
