@@ -431,4 +431,145 @@ router.get('/logs', async (req: AuthenticatedRequest, res) => {
     }
 });
 
+// System Configuration Management
+// Get all system settings
+router.get('/settings', async (req: AuthenticatedRequest, res) => {
+    try {
+        const settings = await req.prisma.systemSettings.findMany({
+            orderBy: { key: 'asc' }
+        });
+
+        // Group settings by category for better organization
+        const groupedSettings: any = {};
+        settings.forEach(setting => {
+            const [category, ...keyParts] = setting.key.split('_');
+            if (!groupedSettings[category]) {
+                groupedSettings[category] = {};
+            }
+            groupedSettings[category][keyParts.join('_') || 'value'] = {
+                value: setting.value,
+                description: setting.description,
+                updatedAt: setting.updatedAt
+            };
+        });
+
+        res.json({ settings: groupedSettings });
+    } catch (error) {
+        logger.error('Failed to get system settings:', error);
+        res.status(500).json({ error: 'Failed to get system settings' });
+    }
+});
+
+// Update system setting
+router.put('/settings/:key', async (req: AuthenticatedRequest, res) => {
+    try {
+        const { key } = req.params;
+        const { value, description } = req.body;
+
+        if (!value) {
+            return res.status(400).json({ error: 'Value is required' });
+        }
+
+        const setting = await req.prisma.systemSettings.upsert({
+            where: { key },
+            update: { value, description },
+            create: { key, value, description }
+        });
+
+        // Log activity
+        await req.prisma.activityLog.create({
+            data: {
+                userId: req.user!.id,
+                action: 'SYSTEM_SETTING_UPDATED',
+                resource: key,
+                details: {
+                    key,
+                    newValue: value,
+                    updatedBy: req.user!.id
+                }
+            }
+        });
+
+        res.json({ success: true, setting });
+    } catch (error) {
+        logger.error('Failed to update system setting:', error);
+        res.status(500).json({ error: 'Failed to update system setting' });
+    }
+});
+
+// Initialize default settings
+router.post('/settings/initialize', async (req: AuthenticatedRequest, res) => {
+    try {
+        const defaultSettings = [
+            {
+                key: 'hetzner_token',
+                value: '',
+                description: 'Hetzner Cloud API Token for container management'
+            },
+            {
+                key: 'hetzner_storage_box_host',
+                value: '',
+                description: 'Hetzner Storage Box Host URL'
+            },
+            {
+                key: 'hetzner_storage_box_user',
+                value: '',
+                description: 'Hetzner Storage Box Username'
+            },
+            {
+                key: 'hetzner_storage_box_pass',
+                value: '',
+                description: 'Hetzner Storage Box Password'
+            },
+            {
+                key: 'admin_email',
+                value: '',
+                description: 'Administrator email address'
+            },
+            {
+                key: 'platform_name',
+                value: 'Media Platform',
+                description: 'Platform display name'
+            },
+            {
+                key: 'default_storage_quota',
+                value: '2048',
+                description: 'Default storage quota in GB for new customers'
+            },
+            {
+                key: 'max_containers_per_user',
+                value: '1',
+                description: 'Maximum number of containers per user'
+            }
+        ];
+
+        const results = [];
+        for (const setting of defaultSettings) {
+            const result = await req.prisma.systemSettings.upsert({
+                where: { key: setting.key },
+                update: {},
+                create: setting
+            });
+            results.push(result);
+        }
+
+        // Log activity
+        await req.prisma.activityLog.create({
+            data: {
+                userId: req.user!.id,
+                action: 'SYSTEM_SETTINGS_INITIALIZED',
+                details: {
+                    settingsCount: results.length,
+                    initializedBy: req.user!.id
+                }
+            }
+        });
+
+        res.json({ success: true, message: 'Default settings initialized', count: results.length });
+    } catch (error) {
+        logger.error('Failed to initialize system settings:', error);
+        res.status(500).json({ error: 'Failed to initialize system settings' });
+    }
+});
+
 export default router;

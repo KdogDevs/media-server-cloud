@@ -1,18 +1,39 @@
 import axios from 'axios';
 import { Client } from 'ssh2';
 import { logger } from '../utils/logger';
+import { settingsService } from './settings-service';
 
 export class HetznerService {
-    private apiToken: string;
-    private storageBoxHost: string;
-    private storageBoxUser: string;
-    private storageBoxPass: string;
+    private apiToken?: string;
+    private storageBoxHost?: string;
+    private storageBoxUser?: string;
+    private storageBoxPass?: string;
+    private configLoaded = false;
 
     constructor() {
-        this.apiToken = process.env.HETZNER_TOKEN!;
-        this.storageBoxHost = process.env.HETZNER_STORAGE_BOX_HOST!;
-        this.storageBoxUser = process.env.HETZNER_STORAGE_BOX_USER!;
-        this.storageBoxPass = process.env.HETZNER_STORAGE_BOX_PASS!;
+        // Configuration will be loaded from settings service when needed
+    }
+
+    /**
+     * Load configuration from settings service
+     */
+    private async loadConfig() {
+        if (!this.configLoaded) {
+            const config = await settingsService.getHetznerConfig();
+            this.apiToken = config.token;
+            this.storageBoxHost = config.storageBoxHost;
+            this.storageBoxUser = config.storageBoxUser;
+            this.storageBoxPass = config.storageBoxPass;
+            this.configLoaded = true;
+        }
+    }
+
+    /**
+     * Check if Hetzner is configured
+     */
+    async isConfigured(): Promise<boolean> {
+        await this.loadConfig();
+        return !!(this.apiToken && this.storageBoxHost && this.storageBoxUser && this.storageBoxPass);
     }
 
     /**
@@ -20,6 +41,12 @@ export class HetznerService {
      */
     async createCustomerStorage(customerId: string, quotaGB: number = 2048) {
         try {
+            await this.loadConfig();
+            
+            if (!await this.isConfigured()) {
+                throw new Error('Hetzner storage is not configured. Please configure it in admin settings.');
+            }
+
             logger.info(`Creating storage for customer: ${customerId}`);
 
             // Create customer directory via SSH
@@ -162,6 +189,12 @@ export class HetznerService {
      * Execute SSH command on storage box
      */
     private async executeSSHCommand(command: string): Promise<string> {
+        await this.loadConfig();
+        
+        if (!this.storageBoxHost || !this.storageBoxUser || !this.storageBoxPass) {
+            throw new Error('Storage box configuration is incomplete');
+        }
+
         return new Promise((resolve, reject) => {
             const conn = new Client();
             
