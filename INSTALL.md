@@ -112,10 +112,24 @@ This will verify that the installation prompts work correctly in your terminal e
 The installation script now supports automated/non-interactive installation through environment variables:
 
 ```bash
-# For automated installations, set these variables:
+# For automated installations with real Clerk keys:
 export CI=true  # Enables non-interactive mode
 export AUTOMATED_UPDATE_CLERK_CONFIGURATION=no  # Skip Clerk config update
-export AUTOMATED_CLERK_AUTHENTICATION=your_key  # Set Clerk keys if needed
+export CLERK_PUBLISHABLE_KEY=pk_test_your_publishable_key
+export CLERK_SECRET_KEY=sk_test_your_secret_key
+
+# Then run the installation
+./setup.sh
+```
+
+```bash
+# For testing/demo installations (uses placeholder keys):
+export CI=true  # Enables non-interactive mode
+export AUTOMATED_UPDATE_CLERK_CONFIGURATION=no  # Skip Clerk config update
+# Note: Clerk keys will be set to demo values automatically
+
+# For testing in restricted environments (like CI/CD):
+export SKIP_DOCKER_BUILD=true  # Skip Docker builds that require network access
 
 # Then run the installation
 ./setup.sh
@@ -125,7 +139,11 @@ export AUTOMATED_CLERK_AUTHENTICATION=your_key  # Set Clerk keys if needed
 - `CI=true` - Enables non-interactive mode
 - `AUTOMATED_INSTALL=true` - Alternative to CI flag
 - `AUTOMATED_UPDATE_CLERK_CONFIGURATION=yes|no` - Controls Clerk config updates
-- `AUTOMATED_CLERK_AUTHENTICATION=value` - Sets Clerk keys automatically
+- `CLERK_PUBLISHABLE_KEY=value` - Sets Clerk publishable key directly
+- `CLERK_SECRET_KEY=value` - Sets Clerk secret key directly
+- `AUTOMATED_CLERK_PUBLISHABLE_KEY=value` - Alternative way to set publishable key
+- `AUTOMATED_CLERK_SECRET_KEY=value` - Alternative way to set secret key
+- `SKIP_DOCKER_BUILD=true` - Skip Docker builds (for testing in restricted environments)
 
 The script automatically detects non-interactive environments and uses sensible defaults.
 
@@ -158,6 +176,17 @@ If you can't interact with installation prompts:
 # Set environment variables to automate responses
 export CI=true
 export AUTOMATED_UPDATE_CLERK_CONFIGURATION=no
+
+# For real installations with Clerk keys:
+export CLERK_PUBLISHABLE_KEY=pk_test_your_key
+export CLERK_SECRET_KEY=sk_test_your_key
+
+# For testing environments (uses demo keys):
+# No additional variables needed - demo keys are used automatically
+
+# For testing in restricted environments:
+export SKIP_DOCKER_BUILD=true
+
 ./setup.sh
 ```
 
