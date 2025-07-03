@@ -95,6 +95,103 @@ install_dialog() {
     apt-get install -y dialog whiptail > /dev/null 2>&1
 }
 
+# Check if we can use whiptail (interactive terminal with proper TTY)
+can_use_whiptail() {
+    # Check if stdin, stdout, and stderr are all terminals and whiptail is available
+    if [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]] && [[ "$TERM" != "dumb" ]] && [[ -n "$TERM" ]] && command -v whiptail &> /dev/null; then
+        # Additional test: check if whiptail can actually work
+        # Use a timeout to prevent hanging in problematic environments
+        if timeout 1s whiptail --msgbox "Testing whiptail availability" 8 50 --title "Test" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Safe yes/no prompt with whiptail fallback
+safe_yesno() {
+    local message="$1"
+    local title="${2:-Confirmation}"
+    
+    if can_use_whiptail; then
+        if whiptail --yesno "$message" 8 78 --title "$title" 3>&1 1>&2 2>&3; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        # Fallback to simple read prompt
+        echo
+        echo "┌─ $title ─┐"
+        echo "│ $message"
+        echo "└─────────────────────────────────┘"
+        while true; do
+            read -p "Enter your choice (y/n): " -n 1 -r
+            echo
+            case $REPLY in
+                [Yy]* ) return 0;;
+                [Nn]* ) return 1;;
+                * ) echo "Please answer y or n.";;
+            esac
+        done
+    fi
+}
+
+# Safe input prompt with whiptail fallback
+safe_input() {
+    local message="$1"
+    local title="${2:-Input Required}"
+    local default="${3:-}"
+    local result=""
+    
+    if can_use_whiptail; then
+        result=$(whiptail --inputbox "$message" 8 78 "$default" --title "$title" 3>&1 1>&2 2>&3)
+    else
+        # Fallback to simple read prompt
+        echo
+        echo "┌─ $title ─┐"
+        echo "│ $message"
+        echo "└─────────────────────────────────┘"
+        if [[ -n "$default" ]]; then
+            read -p "Enter value [$default]: " -r result
+            result="${result:-$default}"
+        else
+            while [[ -z "$result" ]]; do
+                read -p "Enter value: " -r result
+                if [[ -z "$result" ]]; then
+                    echo "Error: Value cannot be empty. Please try again."
+                fi
+            done
+        fi
+    fi
+    echo "$result"
+}
+
+# Safe password prompt with whiptail fallback
+safe_password() {
+    local message="$1"
+    local title="${2:-Password Required}"
+    local result=""
+    
+    if can_use_whiptail; then
+        result=$(whiptail --passwordbox "$message" 8 78 --title "$title" 3>&1 1>&2 2>&3)
+    else
+        # Fallback to simple read prompt
+        echo
+        echo "┌─ $title ─┐"
+        echo "│ $message"
+        echo "└─────────────────────────────────┘"
+        while [[ -z "$result" ]]; do
+            read -s -p "Enter password (hidden): " -r result
+            echo  # Add newline after hidden input
+            if [[ -z "$result" ]]; then
+                echo "Error: Password cannot be empty. Please try again."
+            fi
+        done
+    fi
+    echo "$result"
+}
+
 # Collect configuration from user
 collect_config() {
     log "Collecting minimal configuration from user..."
@@ -103,14 +200,24 @@ collect_config() {
     if [[ "$INSTALLATION_TYPE" == "update" && "$CLERK_CONFIG_EXISTS" == true ]]; then
         log "Using existing Clerk configuration"
         # Ask if user wants to update Clerk keys
-        if whiptail --yesno "Existing Clerk configuration found. Do you want to update it?" 8 78 --title "Update Clerk Configuration" 3>&1 1>&2 2>&3; then
-            CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter new Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
-            CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter new Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
+        if safe_yesno "Existing Clerk configuration found. Do you want to update it?" "Update Clerk Configuration"; then
+            CLERK_PUBLISHABLE_KEY=$(safe_input "Enter new Clerk Publishable Key:" "Clerk Authentication")
+            CLERK_SECRET_KEY=$(safe_password "Enter new Clerk Secret Key:" "Clerk Authentication")
+            
+            # Validate that keys were entered
+            if [[ -z "$CLERK_PUBLISHABLE_KEY" || -z "$CLERK_SECRET_KEY" ]]; then
+                error "Clerk keys cannot be empty. Installation aborted."
+            fi
         fi
     else
         # Fresh install or missing Clerk config - always prompt
-        CLERK_PUBLISHABLE_KEY=$(whiptail --inputbox "Enter Clerk Publishable Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
-        CLERK_SECRET_KEY=$(whiptail --passwordbox "Enter Clerk Secret Key:" 8 78 --title "Clerk Authentication" 3>&1 1>&2 2>&3)
+        CLERK_PUBLISHABLE_KEY=$(safe_input "Enter Clerk Publishable Key:" "Clerk Authentication")
+        CLERK_SECRET_KEY=$(safe_password "Enter Clerk Secret Key:" "Clerk Authentication")
+        
+        # Validate that keys were entered
+        if [[ -z "$CLERK_PUBLISHABLE_KEY" || -z "$CLERK_SECRET_KEY" ]]; then
+            error "Clerk keys are required for installation. Installation aborted."
+        fi
     fi
     
     # Handle database password
