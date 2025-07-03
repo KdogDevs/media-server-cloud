@@ -95,6 +95,21 @@ install_dialog() {
     apt-get install -y dialog whiptail > /dev/null 2>&1
 }
 
+# Check if we're in a non-interactive environment
+is_non_interactive() {
+    # Check for common non-interactive indicators
+    if [[ -n "$CI" ]] || [[ -n "$AUTOMATED_INSTALL" ]] || [[ "$DEBIAN_FRONTEND" == "noninteractive" ]] || [[ ! -t 0 ]]; then
+        return 0
+    fi
+    
+    # Test if we can actually read from stdin
+    if ! timeout 0.1 bash -c 'read -t 0' 2>/dev/null; then
+        return 0
+    fi
+    
+    return 1
+}
+
 # Check if we can use whiptail (interactive terminal with proper TTY)
 can_use_whiptail() {
     # Check if stdin, stdout, and stderr are all terminals and whiptail is available
@@ -112,6 +127,24 @@ can_use_whiptail() {
 safe_yesno() {
     local message="$1"
     local title="${2:-Confirmation}"
+    local default="${3:-no}"  # Default to 'no' for safety
+    
+    # Check for environment variable override
+    local env_var_name="AUTOMATED_${title// /_}"
+    env_var_name="${env_var_name^^}"  # Convert to uppercase
+    env_var_name="${env_var_name//[^A-Z0-9_]/}"  # Clean non-alphanumeric chars except underscore
+    
+    # Safely check if the environment variable exists and has a value
+    if declare -p "$env_var_name" >/dev/null 2>&1; then
+        local env_value=""
+        eval "env_value=\$${env_var_name}"
+        if [[ -n "$env_value" ]]; then
+            case "${env_value,,}" in
+                y|yes|true|1) return 0;;
+                n|no|false|0) return 1;;
+            esac
+        fi
+    fi
     
     if can_use_whiptail; then
         if whiptail --yesno "$message" 8 78 --title "$title" 3>&1 1>&2 2>&3; then
@@ -119,6 +152,16 @@ safe_yesno() {
         else
             return 1
         fi
+    elif is_non_interactive; then
+        # Non-interactive environment - use default and log the decision
+        echo "┌─ $title ─┐"
+        echo "│ $message"
+        echo "│ Non-interactive environment detected. Using default: $default"
+        echo "└─────────────────────────────────┘"
+        case "${default,,}" in
+            y|yes|true) return 0;;
+            *) return 1;;
+        esac
     else
         # Fallback to simple read prompt
         echo
@@ -127,34 +170,38 @@ safe_yesno() {
         echo "└─────────────────────────────────┘"
         
         local attempts=0
-        local max_attempts=5
+        local max_attempts=3  # Reduced from 5 to fail faster
         
         while [[ $attempts -lt $max_attempts ]]; do
             local user_input=""
-            read -p "Enter your choice (y/n): " -r user_input || {
+            if read -p "Enter your choice (y/n) [default: $default]: " -r user_input 2>/dev/null; then
+                # Successfully read input
+                if [[ -z "$user_input" ]]; then
+                    user_input="$default"
+                fi
+                
+                # Handle the response
+                case "${user_input,,}" in  # Convert to lowercase
+                    y|yes) return 0;;
+                    n|no) return 1;;
+                    *) 
+                        echo "Please answer y or n."
+                        ;;
+                esac
+            else
+                # Read failed
                 echo "Error reading input."
-                ((attempts++))
-                continue
-            }
-            
-            # Handle the response
-            case "${user_input,,}" in  # Convert to lowercase
-                y|yes) return 0;;
-                n|no) return 1;;
-                "") 
-                    echo "Please enter a value."
-                    ;;
-                *) 
-                    echo "Please answer y or n."
-                    ;;
-            esac
+            fi
             
             ((attempts++))
         done
         
-        # If we get here, too many invalid attempts
-        echo "Too many invalid attempts. Defaulting to 'no' for safety."
-        return 1
+        # If we get here, too many invalid attempts or read failures
+        echo "Too many invalid attempts or input unavailable. Using default: $default"
+        case "${default,,}" in
+            y|yes|true) return 0;;
+            *) return 1;;
+        esac
     fi
 }
 
@@ -165,24 +212,78 @@ safe_input() {
     local default="${3:-}"
     local result=""
     
+    # Check for environment variable override
+    local env_var_name="AUTOMATED_${title// /_}"
+    env_var_name="${env_var_name^^}"  # Convert to uppercase
+    env_var_name="${env_var_name//[^A-Z0-9_]/}"  # Clean non-alphanumeric chars except underscore
+    
+    # Safely check if the environment variable exists and has a value
+    if declare -p "$env_var_name" >/dev/null 2>&1; then
+        local env_value=""
+        eval "env_value=\$${env_var_name}"
+        if [[ -n "$env_value" ]]; then
+            echo "$env_value"
+            return 0
+        fi
+    fi
+    
     if can_use_whiptail; then
         result=$(whiptail --inputbox "$message" 8 78 "$default" --title "$title" 3>&1 1>&2 2>&3)
+    elif is_non_interactive; then
+        # Non-interactive environment - use default or fail
+        echo "┌─ $title ─┐"
+        echo "│ $message"
+        if [[ -n "$default" ]]; then
+            echo "│ Non-interactive environment detected. Using default: $default"
+            echo "└─────────────────────────────────┘"
+            result="$default"
+        else
+            echo "│ Non-interactive environment detected but no default provided."
+            echo "│ Please set environment variable: $env_var_name"
+            echo "└─────────────────────────────────┘"
+            return 1
+        fi
     else
         # Fallback to simple read prompt
         echo
         echo "┌─ $title ─┐"
         echo "│ $message"
         echo "└─────────────────────────────────┘"
-        if [[ -n "$default" ]]; then
-            read -p "Enter value [$default]: " -r result
-            result="${result:-$default}"
-        else
-            while [[ -z "$result" ]]; do
-                read -p "Enter value: " -r result
-                if [[ -z "$result" ]]; then
-                    echo "Error: Value cannot be empty. Please try again."
+        
+        local attempts=0
+        local max_attempts=3  # Reduced for faster failure
+        
+        while [[ $attempts -lt $max_attempts ]]; do
+            if [[ -n "$default" ]]; then
+                if read -p "Enter value [default: $default]: " -r result 2>/dev/null; then
+                    result="${result:-$default}"
+                    break
+                else
+                    echo "Error reading input."
                 fi
-            done
+            else
+                if read -p "Enter value: " -r result 2>/dev/null; then
+                    if [[ -n "$result" ]]; then
+                        break
+                    else
+                        echo "Error: Value cannot be empty. Please try again."
+                    fi
+                else
+                    echo "Error reading input."
+                fi
+            fi
+            ((attempts++))
+        done
+        
+        # If we still don't have a result after all attempts
+        if [[ -z "$result" ]]; then
+            if [[ -n "$default" ]]; then
+                echo "Input unavailable. Using default: $default"
+                result="$default"
+            else
+                echo "Input unavailable and no default provided. Cannot continue."
+                return 1
+            fi
         fi
     fi
     echo "$result"
@@ -194,21 +295,61 @@ safe_password() {
     local title="${2:-Password Required}"
     local result=""
     
+    # Check for environment variable override
+    local env_var_name="AUTOMATED_${title// /_}"
+    env_var_name="${env_var_name^^}"  # Convert to uppercase
+    env_var_name="${env_var_name//[^A-Z0-9_]/}"  # Clean non-alphanumeric chars except underscore
+    
+    # Safely check if the environment variable exists and has a value
+    if declare -p "$env_var_name" >/dev/null 2>&1; then
+        local env_value=""
+        eval "env_value=\$${env_var_name}"
+        if [[ -n "$env_value" ]]; then
+            echo "$env_value"
+            return 0
+        fi
+    fi
+    
     if can_use_whiptail; then
         result=$(whiptail --passwordbox "$message" 8 78 --title "$title" 3>&1 1>&2 2>&3)
+    elif is_non_interactive; then
+        # Non-interactive environment - require environment variable
+        echo "┌─ $title ─┐"
+        echo "│ $message"
+        echo "│ Non-interactive environment detected."
+        echo "│ Please set environment variable: $env_var_name"
+        echo "└─────────────────────────────────┘"
+        return 1
     else
         # Fallback to simple read prompt
         echo
         echo "┌─ $title ─┐"
         echo "│ $message"
         echo "└─────────────────────────────────┘"
-        while [[ -z "$result" ]]; do
-            read -s -p "Enter password (hidden): " -r result
-            echo  # Add newline after hidden input
-            if [[ -z "$result" ]]; then
-                echo "Error: Password cannot be empty. Please try again."
+        
+        local attempts=0
+        local max_attempts=3  # Reduced for faster failure
+        
+        while [[ $attempts -lt $max_attempts ]]; do
+            if read -s -p "Enter password (hidden): " -r result 2>/dev/null; then
+                echo  # Add newline after hidden input
+                if [[ -n "$result" ]]; then
+                    break
+                else
+                    echo "Error: Password cannot be empty. Please try again."
+                fi
+            else
+                echo  # Add newline if read failed
+                echo "Error reading input."
             fi
+            ((attempts++))
         done
+        
+        # If we still don't have a result after all attempts
+        if [[ -z "$result" ]]; then
+            echo "Password input unavailable. Cannot continue."
+            return 1
+        fi
     fi
     echo "$result"
 }
@@ -221,7 +362,7 @@ collect_config() {
     if [[ "$INSTALLATION_TYPE" == "update" && "$CLERK_CONFIG_EXISTS" == true ]]; then
         log "Using existing Clerk configuration"
         # Ask if user wants to update Clerk keys
-        if safe_yesno "Existing Clerk configuration found. Do you want to update it?" "Update Clerk Configuration"; then
+        if safe_yesno "Existing Clerk configuration found. Do you want to update it?" "Update Clerk Configuration" "no"; then
             CLERK_PUBLISHABLE_KEY=$(safe_input "Enter new Clerk Publishable Key:" "Clerk Authentication")
             CLERK_SECRET_KEY=$(safe_password "Enter new Clerk Secret Key:" "Clerk Authentication")
             

@@ -107,6 +107,28 @@ If you experience issues with installation prompts, you can test the dialog func
 
 This will verify that the installation prompts work correctly in your terminal environment.
 
+### Automated Installation
+
+The installation script now supports automated/non-interactive installation through environment variables:
+
+```bash
+# For automated installations, set these variables:
+export CI=true  # Enables non-interactive mode
+export AUTOMATED_UPDATE_CLERK_CONFIGURATION=no  # Skip Clerk config update
+export AUTOMATED_CLERK_AUTHENTICATION=your_key  # Set Clerk keys if needed
+
+# Then run the installation
+./setup.sh
+```
+
+**Available Environment Variables:**
+- `CI=true` - Enables non-interactive mode
+- `AUTOMATED_INSTALL=true` - Alternative to CI flag
+- `AUTOMATED_UPDATE_CLERK_CONFIGURATION=yes|no` - Controls Clerk config updates
+- `AUTOMATED_CLERK_AUTHENTICATION=value` - Sets Clerk keys automatically
+
+The script automatically detects non-interactive environments and uses sensible defaults.
+
 ## Development
 
 For development, you can run individual services:
@@ -126,8 +148,23 @@ cd frontend && npm run dev
 If you can't interact with installation prompts:
 - The system automatically detects terminal compatibility
 - Falls back to text-based prompts when whiptail dialogs don't work
+- **NEW**: Automatically handles non-interactive environments (CI/CD, automated installs)
+- **NEW**: Supports environment variable overrides for automation
 - Works in SSH sessions, web terminals, and other environments
 - Run `./test-dialog-fix.sh` to verify functionality
+
+**For Non-Interactive Installations:**
+```bash
+# Set environment variables to automate responses
+export CI=true
+export AUTOMATED_UPDATE_CLERK_CONFIGURATION=no
+./setup.sh
+```
+
+**Common Issues Fixed:**
+- "Error reading input" in automated environments ✓
+- Hanging prompts in CI/CD pipelines ✓
+- Failed installations in Docker containers ✓
 
 ### Service Status
 ```bash
